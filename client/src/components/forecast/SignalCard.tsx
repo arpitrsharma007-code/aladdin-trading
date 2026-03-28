@@ -1,3 +1,5 @@
+import { useState } from 'react';
+import { Wallet, TrendingUp, ShieldAlert, Target } from 'lucide-react';
 import type { ForecastSignal } from '../../types/forecast';
 import { formatINR, cn } from '../../utils/formatters';
 
@@ -27,10 +29,14 @@ function getIcon(signal: string): string {
   return INDICATOR_ICON[signal] || '⚪';
 }
 
+const CAPITAL_OPTIONS = [10000, 25000, 50000, 100000, 250000, 500000];
+
 export function SignalCard({ signal }: { signal: ForecastSignal }) {
   const colors = SIGNAL_COLORS[signal.signalType] || SIGNAL_COLORS.HOLD;
   const isBuy = signal.signalType.includes('BUY');
   const isSell = signal.signalType.includes('SELL');
+  const [capital, setCapital] = useState(100000); // ₹1 lakh default
+  const riskPercent = 2; // 2% risk per trade
 
   return (
     <div className="space-y-3">
@@ -91,6 +97,64 @@ export function SignalCard({ signal }: { signal: ForecastSignal }) {
         <span className="text-gray-400">Risk : Reward</span>
         <span className="text-white font-bold">1 : {signal.riskReward}</span>
       </div>
+
+      {/* Position Sizing */}
+      {(isBuy || isSell) && (() => {
+        const riskPerShare = Math.abs(signal.entryPrice - signal.stopLoss);
+        const riskAmount = capital * (riskPercent / 100);
+        const qty = riskPerShare > 0 ? Math.floor(riskAmount / riskPerShare) : 0;
+        const investmentAmt = qty * signal.entryPrice;
+        const potentialLoss = qty * riskPerShare;
+        const profitT1 = qty * Math.abs(signal.target1 - signal.entryPrice);
+        const profitT2 = qty * Math.abs(signal.target2 - signal.entryPrice);
+
+        return (
+          <div className="border-t border-terminal-border pt-3">
+            <div className="flex items-center justify-between mb-2">
+              <div className="text-[11px] text-gray-500 uppercase tracking-wider flex items-center gap-1">
+                <Wallet size={11} />
+                Position Size
+              </div>
+              <select
+                value={capital}
+                onChange={(e) => setCapital(Number(e.target.value))}
+                className="bg-terminal-border/50 text-white text-[10px] px-1.5 py-0.5 rounded outline-none border border-terminal-border"
+              >
+                {CAPITAL_OPTIONS.map((c) => (
+                  <option key={c} value={c}>₹{(c / 1000).toFixed(0)}K Capital</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="grid grid-cols-2 gap-2 text-[11px]">
+              <div className="bg-terminal-blue/10 border border-terminal-blue/20 rounded p-2">
+                <div className="text-gray-500 text-[10px]">Quantity</div>
+                <div className="text-terminal-blue font-bold text-lg">{qty}</div>
+                <div className="text-gray-600 text-[9px]">{isBuy ? 'shares to buy' : 'shares to sell'}</div>
+              </div>
+              <div className="bg-terminal-border/30 rounded p-2">
+                <div className="text-gray-500 text-[10px]">Investment</div>
+                <div className="text-white font-bold">{formatINR(investmentAmt)}</div>
+                <div className="text-gray-600 text-[9px]">of {formatINR(capital)}</div>
+              </div>
+              <div className="bg-red-500/10 border border-red-500/20 rounded p-2">
+                <div className="text-gray-500 text-[10px] flex items-center gap-0.5"><ShieldAlert size={9} /> Max Risk</div>
+                <div className="text-red-400 font-bold">{formatINR(potentialLoss)}</div>
+                <div className="text-gray-600 text-[9px]">{riskPercent}% of capital</div>
+              </div>
+              <div className="bg-green-500/10 border border-green-500/20 rounded p-2">
+                <div className="text-gray-500 text-[10px] flex items-center gap-0.5"><Target size={9} /> Profit T1/T2</div>
+                <div className="text-green-400 font-bold">{formatINR(profitT1)}</div>
+                <div className="text-green-500/70 text-[9px]">T2: {formatINR(profitT2)}</div>
+              </div>
+            </div>
+
+            <div className="mt-2 text-[9px] text-gray-600 text-center">
+              Based on {riskPercent}% risk per trade · {formatINR(riskPerShare)}/share risk
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Indicator Breakdown */}
       <div className="border-t border-terminal-border pt-3">
